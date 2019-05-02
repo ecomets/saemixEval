@@ -1,0 +1,482 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage[noae]{Sweave}
+\usepackage{palatino}
+\usepackage[utf8x]{inputenc}
+\usepackage{lscape}
+%\usepackage[dvips]{color}
+\usepackage{xcolor}
+\usepackage{longtable,fancyhdr}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+
+\title{Conditional non-parametric bootstrap}
+\author{Emmanuelle Comets}
+\date{\today}
+
+% Page layout
+\setlength{\topmargin}{-0.5cm}
+\setlength{\textheight}{23cm}
+\setlength{\textwidth}{16cm}
+\setlength{\oddsidemargin}{0.5cm}
+\renewcommand{\baselinestretch}{1.1}
+\renewcommand{\topfraction}{0.99}
+\renewcommand{\bottomfraction}{0.99}
+
+
+\def\Y{{\mathbf{Y}}}
+\def\X{{\mathbf{X}}}
+\def\Z{{\mathbf{Z}}}
+\def\V{{\mathbf{V}}}
+\def\e{{\boldsymbol{\epsilon}}}
+\def\bt{{\boldsymbol{\beta}}}
+\def\et{{\boldsymbol{\eta}}}
+
+% Code command
+\newcommand{\pkg}[1]{{\fontseries{b}\selectfont #1}}
+
+
+\SweaveOpts{...}
+
+\begin{document}
+
+% Sweave options
+% Keep code as is
+\SweaveOpts{keep.source=TRUE}
+% Workaround to avoid the .tex file disappearing message
+<<Rsetup, results=hide, echo=FALSE>>=
+CUR_WD=getwd()
+setwd(CUR_WD)
+@
+%\SweaveOpts{concordance=TRUE}
+% Set default figure size
+%\SweaveOpts{width=16,height=23cm}
+% caption length for longtable
+\setlength{\LTcapwidth}{\textwidth} 
+
+\newcommand{\D}{\displaystyle} \normalsize
+\SweaveOpts{concordance=TRUE}
+% From R. Ihaka (customising Sweave output)
+% Indenting
+\DefineVerbatimEnvironment{Sinput}{Verbatim}{xleftmargin=2em,fontshape=sl,fontfamily=tt}
+\DefineVerbatimEnvironment{Soutput}{Verbatim}{xleftmargin=2em,fontshape=sl,fontfamily=tt}
+\DefineVerbatimEnvironment{Scode}{Verbatim}{xleftmargin=2em,fontshape=sl,fontfamily=tt}
+\fvset{listparameters={\setlength{\topsep}{-1pt}}}
+\renewenvironment{Schunk}{\vspace{\topsep}}{\vspace{\topsep}}
+<<echo=false>>=
+options(width=60)
+options(continue=" ")
+options(SweaveHooks=list(fig=function()
+           par(mar=c(5.1, 4.1, 1.1, 2.1))))
+@
+%Resize figures to have 2 on the same page (default=0.8\textwidth)
+%\setkeys{Gin}{width=0.7\textwidth}
+%Resize figures to textwidth
+\setkeys{Gin}{width=\textwidth}
+
+\pagestyle{fancy}
+\renewcommand{\headrulewidth}{1pt}
+\renewcommand{\footrulewidth}{1pt}
+%\renewcommand{\footrulewidth}{0pt}
+\lhead{}
+\chead{{\bf Evaluation of saemix extension}}
+\rhead{}
+\lfoot{\itshape Emmanuelle Comets, Belhal Karimi, \today}
+%\lfoot{}
+\cfoot{}
+\rfoot{\thepage}
+
+\begin{center}
+{\bfseries \Large Evaluation of saemix extension}
+\end{center}
+
+{\bf \large Authors: Emmanuelle Comets$^{1,2}$, Belhal Karimi$^3$} 
+
+\bigskip
+
+$^1$ INSERM, IAME, UMR 1137, F-75018 Paris, France; Univ Paris Diderot, Sorbonne Paris Cité, F-75018 Paris, France
+
+$^2$ INSERM, CIC 1414, 35700 Rennes, France; Univ Rennes-1, 35700 Rennes, France
+
+$^3$ 
+
+
+\bigskip
+
+\section{Introduction}
+
+\paragraph{Objectives} the main objective is to evaluate the extensions for modelling non continuous data in the \pkg{saemix} package. A secondary objective is to evaluate the estimation of the individual parameters for different types of models (continuous and non-continuous responses).
+
+\section{Statistical methods}
+
+\subsection{Statistical models}
+
+Let the random variable $Y_{ij}$ denote the observation of the continuous longitudinal data at time $t_{ij}$ for subject $i=1,...,N$ and measurement $j=1,...,n_i$ and let $\Y_i$ be the $n_i$-dimensional vector of all repeated measurements for subject $i$, that is, $\Y_i= (y_{i1},y_{i2},....,y_{in_i})'$. A general formulation of the non-linear mixed-effects model (NLMEM) for the observation $y_{ij}$ can be written as follows:
+
+\begin{equation}
+\begin{cases}
+y_{ij}= f(x_{ij}, \mu, \eta_i) + g(x_{ij}, \mu, \eta_i, \sigma) \; \epsilon_{ij} \\
+\theta_i = h(\mu, \eta_i) \\
+\eta_i \sim N(0,\Omega)\\ \label{eq:modelStat}
+\epsilon_{ij} \sim N(0, 1)
+\end{cases}
+\end{equation}
+where $f$ is the structural model, $\theta_i$ denotes the individual parameters, which are related through a function $h$ to $\mu$, the $p$-dimensional vector containing the fixed effects, and $\eta_i$, the $q$-dimensional vector containing the random effects. $\epsilon_{ij}$ is a random variable assumed to be normally distributed. $\sigma$ denotes variance parameters entering the function $g$, which expresses the standard deviation of the measurement error and is generally either constant (homoscedastic variance) or a function of $f$. The random effects $\eta_i$ and the residual errors $\epsilon_{ij}$ are assumed to be independent for different subjects and to be independent of each other for the same subject. We will also denote by $\xi_i$ the sampling times (or design) for subject $i$.
+
+Without loss of generality, we assume that parameters are estimated by maximum likelihood. In non-linear mixed effect models, the likelihood associated with~\ref{eq:modelStat} is intractable as individual likelihoods need to integrate out the unknown parameters $\theta_i$ over their distribution $\mathcal{D}_{\theta}$. In this study, we used the SAEM algorithm, an algorithm of the EM family, to obtain parameter estimates~\cite{Kuhn05,Monolix}. Alternatively, methods based on model linearisation and using Newton gradient-based algorithms can be used~\cite{Nonmem}. During the stochastic approximation phase, the conditional distribution of the parameters is obtained as it is the distribution in which the unknown parameters $\eta_i$ are imputed to obtain a complete dataset from which the conditional log-likelihood is derived~\cite{Kuhn05}. The estimated individual parameters, called empirical Bayes estimates (EBE), can be defined as the mode or the median of the conditional distribution. With linearisation-based algorithms, EBE are obtained by minimising a Bayesian criterion.
+
+\subsection{Standard errors of estimation}
+
+\hskip 18pt In maximum likelihood theory, the MLE $\hat{\theta}$ of $\theta$ is asymptotically normally distributed with mean $\theta$ and asymptotic covariance matrix given by the inverse of the Fisher information matrix $M_F$. The asymptotic SE of parameters are then derived from the estimated covariance matrix, which is usually obtained through a first-order approximation of the model for continuous responses~\cite{Retout02}.
+
+For non-continuous responses however, the linearisation based methods have been shown to provide poor estimates of the SE. Exact approaches have been proposed to compute the Fisher information matrix, such as adaptive Gaussian quadrature~\cite{Ueckert16} or Markov Chain Monte Carlo integration~\cite{Riviere16}, in combination with Monte-Carlo sampling. Alternatively, computationnally intensive approaches like likelihood profiling~\cite{}, bootstrap~\cite{} or Sampling Importance Resampling~\cite{} have been suggested but have never been evaluated with non-continuous data.
+
+\subsection{Estimation of individual parameters}
+
+\hskip 18pt 
+
+\section{Simulation studies}
+
+\subsection{Objective and evaluation criteria}
+
+\hskip 18pt 
+
+Evaluate individual parameters, shrinkage
+
+Evaluate individual predictions (ie maybe individual parameters are off but predictions are similar)
+
+\subsection{Continuous data}
+
+\hskip 18pt Simulations have shown good performances for the SAEM algorithm implemented in the \pkg{saemix} package~\cite{CometsJSS17}, in the same simulation examples as used by Plan et al. to evaluate \pkg{nlme}, \pkg{NONMEM} and \pkg{Monolix} in 2012~\cite{Plan12}. Few papers have evaluated the quality/reliability of the individual parameter estimates: {\bf \textcolor{red}{XXcheckBiblioXXX}}
+
+Evaluation of individual parameters:
+\begin{itemize}
+\item Illiadis 1985: Bayesian estimate of clearance both in subjects used in the estimation of the population parameters and in routine subjects~\cite{Illiadis85}
+  \begin{itemize}
+  \item infusion of high dose methotrexate, preceded by an IV test dose to estimate PK parameters; PK modelled as a double exponential (eg 2 cpt model with fixed duration infusion)
+  \item procedure integrated in a somewhat different perspective which tries to use data from routine infusion to access the individual parameters, with a reduced sampling approach, so assessment of LSS itself and choice of best strategy
+  \item evaluation of the estimated clearance, compared to the simulated values, as bias and RMSE
+  \end{itemize}
+\item Nguyen 2013: estimation of individual parameters during HCV treatment
+  \begin{itemize}
+  \item viral kinetic model with an ODE system of 3 equations
+  \item evaluate mean relative error and RRMSE of all parameters, as well as shrinkage
+  \item impact of design (sparse or informative) and of the number of BQL data
+  \item good estimation of individual parameters as long as parameters remain identifiable
+  \item setting may be too complex for simulations with \pkg{saemix} (ODE model)
+  \end{itemize}
+\item Studies in therapeutic drug monitoring
+  \begin{itemize}
+  \item Preijers 2017: evaluation of LSS strategies in the predicion of selected individual parameters (CL, time to 1\% and Vss); uses an initial population model fit followed by Bayesian analysis; simulations to assess the rMPE and the rRMSE of CL, t12 and Vss (note: 3 cpt PK model) for each of 11 LSS schemes
+  \item several papers evaluating the prediction of an outcome (eg INR response, AUCs, ...) in therapeutic drug monitoring
+  \item 
+  \end{itemize}
+\end{itemize}
+
+\subsubsection{PK model with covariate}
+
+Possibilities:
+\begin{itemize}
+\item one cpt PK model used in Combes 2014
+  \begin{itemize}
+  \item diagonal variability 50 or 20\%
+  \item proportional error model 30 or 40\%
+  \item different designs (5, 3 or 2 points, optimised with PFIM) and number of subjects
+  \item bias or RMSE on individual parameters not estimated/reported, paper focused on power of LRT and Wald tests
+  \end{itemize}
+\item one cpt PK model used in Lavielle 2016
+  \begin{itemize}
+  \item impact of Weight on all parameters
+  \item full covariance matrix
+  \item but odd error model: exponential error...
+  \item bias or RMSE on individual parameters not estimated/reported, paper focused on diagnostics
+  \end{itemize}
+\item two-compartment PK model used in Thai 2014~\cite{Thai14}
+  \begin{itemize}
+  \item variability 30\%, correlation between CL and Q ($\rho=0.5$)
+  \item proportional error model 25\%
+  \item sparse (N=70/n=4) and rich design (N=30/n=9), and a mixed design for the MM simulation
+  \item bias or RMSE on individual parameters not estimated/reported
+  \end{itemize}
+\end{itemize}
+
+Proportional or combined error model
+
+In this scenario we will vary:
+\begin{itemize}
+\item the number of subjects: $ N \in \{ .., , ... \}$
+\item the number of observations per subject: $ n_i \in \{ , ... \}$, as well as a mixed design with rich and sparse sampling (respectively $n_i=XXX$ and XXX).
+\item the interindividual variability $ \omega \in \{ 30, 50, 70 \}$ (expressed in \%)
+\item the residual variability: $ \epsilon \in \{ 20\%, 50\% \}$
+\end{itemize}
+
+\subsubsection{PD Hill model}
+
+In this example, we use the same simulation settings as in~\cite{Plan12}. This example has the following interesting features: first, the non-linearity of the model can be adjusted through the sigmoidicity parameter, to explore its impact on model estimates;  second, a covariance between ED50 and Emax is assumed; third, we can compare some results to previously published findings~\cite{Plan12,CometsJSS17}.
+
+In this scenario we will vary:
+\begin{itemize}
+\item model non-linearity: $ \gamma \in \{ 1, 2, 3 \}$
+\item the number of subjects: $ N \in \{ .., 100, ... \}$
+\item the number of observations per subject: $ n_i \in \{ 2, 4, ... \}$
+\item the interindividual variability $ \omega \in \{ 30, 50, 70 \}$ (expressed in \%)
+\item the residual variability: $ \epsilon \in \{ .., 2, .. \}$
+\end{itemize}
+
+In this simulation we use a similar framework as in~\cite{Plan12} to simulate new datasets where we keep the individual parameters for comparison. The model is a sigmoid E$_{\rm max}$ model, a standard model in dose-response studies where the effect of a drug in response to a dose $d$, E($d$), is a sigmoid function corresponding to the following equation:
+\begin{equation}
+E (d)  =  E_{0} + E_{\rm max} \; \frac{d_i^{\gamma}}{d_i^{\gamma}+ED_{50}^{\gamma}} \label{eq:hillmodel}
+\end{equation}
+This model involves 4 parameters, the initial effect E$_0$, the maximum effect E$_{\rm max}$, the concentration at which half the maximum effect is achieved EC$_{50}$ and the sigmoidicity factor $\gamma$ which controls the nonlinearity of the model through the curvature. Interindividual variability was modelled through a log-normal distribution for all parameters, except for $\gamma$ which was assumed to be the same for all subjects (no IIV). A correlation was simulated between E$_{\rm max}$ and EC$_{\rm 50}$. In Plan et al., 3 values of $\gamma$ were tested, 1, corresponding to the E$_{max}$ model, and 2 and 3, involving increasing amounts of nonlinearity~(\cite{Plan12}), along with two residual error models, additive or proportional error. In the present work, we focus on the scenarios with proportional variance $\sigma^2$. The parameters used in the simulation are given in Table~\ref{tab:exPD.simpar}.
+\begin{table}[!h]
+\begin{center}
+\begin{tabular} {l c c l c}
+\hline
+Parameter & Value & $\phantom{spa}$ & Parameter & Value \\
+\hline
+E$_0$ (-) & 5 && $\omega_{E_0}^2$ & 0.09 \\
+E$_{\rm max}$ (-) & 30 && $\omega_{E_{\rm max}}^2$ & 0.49\\
+EC$_{50}$ (mg) & 500 && $\omega_{EC_{50}}^2$ & 0.49 \\
+$\gamma$ (-) & 3 && ${\rm cov}({E_0},E_{\rm max})$ & 0.245\\
+$\sigma$ (-) & 0.1  &&  \\
+\hline
+\end{tabular}
+\end{center}
+\caption{Parameters used in the simulation for the E$_{\rm max}$ model (see~\cite{Plan12}).}. \label{tab:exPD.simpar}
+\end{table}
+
+{\it \textcolor{red}{\bf TODO: change and decide on tuning} The design of the simulation study mimicked that of a clinical trial including 100 individuals and investigating four dose levels (0, 100, 300, and 1000~mg). Two sampling designs were evaluated, a rich design ($R$) in which all individuals were sampled at the four dose levels, and a sparse design ($S$) where each individual was randomly allocated to only two of the four dose levels.//
+We evaluated the influence of the starting values and of the tuning parameters on the performance of \pkg{saemix}. Initial parameter estimates were either set to the values used in the simulation (\texttt{true}) or to different values (\texttt{false}), where the fixed parameters were multiplied by 2 while the variability parameters were set to 0.1. We also used either the default settings of the algorithm, or tuned the settings by increasing the number of chains to 5 and increasing the number of iterations to 300 and 150 respectively in the burn-in and convergence phases of the algorithm. Combining starting values and tuning parameters, we therefore performed 4 successive parameter estimations for each dataset. In all settings, we used the same random seed for all runs.
+}
+
+\subsection{Discrete and time-to-event data}
+
+\hskip 18pt Features of simulation examples:
+\begin{itemize}
+\item fixed and random effects
+  \begin{itemize}
+  \item identifiability of IIV for TTE model ?
+  \end{itemize}
+\item design ensuring identifiability
+  \begin{itemize}
+  \item optimisation with PFIM for discrete models ?
+  \item optimisation with PFIM and Bayesian criterion for individual parameter estimation ?
+  \end{itemize}
+\end{itemize}
+
+{\bf Note:} No simulations performed yet to evaluate applications of SIR in discrete data models (purpose of Marilou's MSc course). Two examples in time-to-event data and binary data could be used from the real data examples analysed in~\cite{Dosne17}.
+
+\subsubsection{Time-to-event data}
+
+\hskip 18pt Simulation settings could be taken from examples in the literature:
+\begin{itemize}
+\item Svensson 2017
+  \begin{itemize}
+  \item model with longitudinal evolution of bacterial load, logistic model for probability of finding bacteria in samples, and time-to-event model for time to positivity of bacteria (?) (TTP)
+  \item somewhat complicated to simulate
+  \end{itemize}
+\item Cerou 2018
+  \begin{itemize}
+  \item longitudinal model for PSA informing the hazard function for the risk to dropout
+  \item the IIV is carried only by the longitudinal model, which is assumed to be perfectly known
+  \end{itemize}
+\item Dosne 2017: three examples of real life data; 
+  \begin{itemize}
+  \item PD6: RTTE model for epileptic seizures (Abrantes 2014, PAGE abstract)
+    \begin{itemize}
+    \item different hazard functions, involving categorical covariates
+    \end{itemize}
+  \item PD7: Cox-proportional hazard model (Karlsson 2014, PAGE abstract)
+    \begin{itemize}
+    \item not really applicable in our settings as non-parametric
+    \end{itemize}
+  \item PD11: TTE for conversion to sinus rhythm in acute atrial fibrillation, PK coupled with time-to-event exponential model with covariates (Hennig 2009, PAGE abstract)
+    \begin{itemize}
+    \item joint PKPD model with a categorical event
+    \end{itemize}
+  \end{itemize}
+\item Schindler 2017
+  \begin{itemize}
+  \item complex model involving drug exposure, biomarkers and overall survival modelled as TTE (probably no variability on TTE model, but individual covariate included)
+  \end{itemize}
+\end{itemize}
+
+Simple examples used in Monolix:
+\begin{itemize}
+\item Single event
+  \begin{itemize}
+  \item Veteran's lung cancer study~\cite{Kalbfleisch80}
+    \begin{itemize}
+    \item 137 with advanced inoperable lung cancer, given either a standard therapy or a test chemotherapy (9 right censored)
+    \item modelled using an exponential hazard function with 2 covariates (Karnofsky type and histological cell type)
+    \end{itemize}
+  \item North Central Cancer Treatment Group (NCCTG) data~\cite{Loprinzi94}
+    \begin{itemize}
+    \item survival of 228 patients with advanced lung cancer, including 63 right censored
+    \item Gompertz model with variability on scale and prognostic covariates (gender and ECOG score)
+    \end{itemize}
+  \item Oropharynx data set~\cite{Kalbfleisch80}
+    \begin{itemize}
+    \item comparison between radiation therapy alone or radiation therapy together with a chemotherapeutic agent in 195 patients
+    \item 30\% of the survival times are censored owing primarily to patients surviving to the time of analysis
+    \end{itemize}
+  \item Primary Biliary Cirrhosis data set~\cite{Fleming90}
+    \begin{itemize}
+    \item double-blinded randomized trial in primary biliary cirrhosis of the liver (PBC), comparing the drug D-penicillamine (DPCA) with a placebo
+    \item 312 patients, 125 deaths, 8 lost to follow-up, 19 with liver transplantation
+    \end{itemize}
+  \end{itemize}
+\item Repeated TTE
+  \begin{itemize}
+  \item not really described, need further check
+  \end{itemize}
+\item Monolix demos
+  \begin{enumerate}
+  \item tte1: constant hazard model
+  \item tte2: constant hazard model with interval censored data
+  \item tte3: RTTE with constant hazard model
+  \item tte4: RTTE with constant hazard model for interval censored data
+  \item weibullRTTE: Weibull RTTE model (note: count version of this model also in demos weibullCount)
+  \end{enumerate}
+\end{itemize}
+
+\subsubsection{Ordinal data}
+
+\hskip 18pt Question: binary or directly 3 categories ?
+
+\begin{itemize}
+\item Respiratory status data set~\cite{Davis91} showcased in Monolix Datxplore
+  \begin{itemize}
+  \item 111 patients given a placebo or an active treatment, and followed at baseline and 4 follow-up visits; covariates such as center, sex and age
+  \item respiratory status categorised as poor or good (binary data)
+  \item no model associated ?
+  \end{itemize}
+\item Monolix demos
+  \begin{enumerate}
+  \item categorical1: cumulative odds ratio model with 3 categories 
+  \item categorical2: proportional odds ratio model with 2 covariates
+  \item discrete Markov model with 2 independent states
+  \item discrete Markov model with transition matrix and initial state assumed to be balanced (p=0.5)
+  \item discrete Markov model with transition matrix and estimated initial state
+  \item discrete Markov model with transition matrix changing with time
+  \item discrete Markov model with 3 states
+  \end{enumerate}
+\end{itemize}
+
+\subsubsection{Count data}
+
+\hskip 18pt
+
+\begin{itemize}
+\item Epilepsy attacks data set~\cite{Leppik85} showcased in Monolix Datxplore
+  \begin{itemize}
+  \item clinical trial of 59 epileptics who were randomized to receive either the anti-epileptic drug progabide or a placebo, as an adjuvant to standard chemotherapy, and followed at baseline and 4 follow-up visits
+  \item no model associated ?
+  \end{itemize}
+\item Monolix demos
+  \begin{enumerate}
+  \item count1a: Poisson model with constant distribution over time
+  \item count1b: Poisson model with constant distribution over time, mixture of two Poisson distributions
+  \item count2: Poisson distribution with $\lambda$ changing exponentially over time
+  \end{enumerate}
+\end{itemize}
+
+\begin{itemize}
+\item 
+  \begin{itemize}
+  \item 
+  \end{itemize}
+\item 
+  \begin{itemize}
+  \item 
+  \end{itemize}
+\end{itemize}
+
+\clearpage
+\newpage
+\section{Results of simulation studies}
+
+<<loadinglibrary, echo=F>>=
+rootDir<-"/home/eco/work/monolix/rversion/newLib"
+simDir<-file.path(rootDir,"zesims")
+setwd(rootDir)
+
+# library(saemix)
+saemixDir<-"/home/eco/work/monolix/rversion/newLib/saemix"
+source(file.path(rootDir,"saemix","testeco","helper-source.R"))
+library(MASS)
+library(xtable)
+@
+
+\subsection{Continuous data}
+
+\subsubsection{PD Hill model}
+
+\hskip 18pt Tables~\ref{tab:rbias.PDHill1} to~\ref{tab:rbias.PDHill3} show the bias on the population parameters in the 3 models in the rich design scenario (4 doses per subject) (table~\ref{tab:rbias.PDHill1}), a sparse design scenario with 2 doses per subject (table~\ref{tab:rbias.PDHill2}), and a rich design with a large residual variability (table~\ref{tab:rbias.PDHill3}). With a rich design, all parameters are well estimated without bias, even when the nonlinearity becomes high ($\gamma=3$). With a sparse design, some bias appears for the variance components but surprisingly the bias is more important for the Emax model ($\gamma=1$) than for the more nonlinear Hill model with $\gamma=3$. In the setting with a large residual variability, the population parameters are well estimated but the variances are extremely biased (with the exception of $\omega^2{E_0}$).
+
+The next 3 tables (\ref{tab:rbiasSE.PDHill1} to~\ref{tab:rbiasSE.PDHill3}) give the relative biases on the SE reported by \pkg{saemix} in the 3 simulation settings. In this table, the estimated SE are compared to the empirical SE derived from the simulated datasets. In general, the SE seem underestimated except in the scenario with high residual variability where the SE on the variance terms tend to be overestimated. 
+
+\bigskip
+The next tables compare the individual estimated parameters to their simulated values ($\gamma$ is not shown as it simulated and estimated without variability). Tables~\ref{tab:iparRBias.PDHill1} to~\ref{tab:iparRBias.PDHill3} give the relative bias on the different parameters for the MAP estimate, the mean of the conditional distribution at the end of the estimation step ({\sf Cmean}), and the mean of the conditional distribution after running the conditional distribution algorithm starting from these estimates ({\sf Cmean2}), in the three simulation settings. In brackets, the average of the standard deviation of the difference between estimated and simulated parameters is shown, representing the average precision of estimation for each parameter. Tables~\ref{tab:iparShrink.PDHill1} to~\ref{tab:iparShrink.PDHill3} give the corresponding shrinkage defined for a parameter $\theta_p$ as:
+\begin{equation}
+Shr(\theta_p) = 1 - \frac{var(\hat{\theta_{p,i}})}{\hat{\omega_p^2}} \label{eq:shrinkage}
+\end{equation}
+where $\hat{\theta_{p,i}}$ denotes the individual estimate of $\theta_p$ in subject $i$ and $\hat{\omega_p^2}$ is the population estimate of the variance of the parameter.
+
+In the rich design, the individual parameters are well estimated with only a few showing some bias (5-12\% mostly on E$_{\rm max}$ or ED$_{50}$). The two conditional mean estimates are very highly correlated, so that running the additional conditional distribution step does not seem to add much information. The MAP estimates seem to have slightly less bias than the conditional estimates. In the sparse design, the bias is predictably much higher, with only 2 samples per subject to estimate 3 or 4 parameters. There is less bias in the design with higher residual error but again ED$_{50}$ is the most difficult parameter to estimate. In all designs, paradoxically the simpler Emax model has more bias than the two Hill models for the ED$_{50}$ parameter. Higher bias seems to be related to higher shrinkage, but in some cases there is no relationship, for instance in the sparse design there is no bias on E$_0$ but the shrinkage is over 30\%. We also note that shrinkage is much larger for the conditional mean estimates compared to the MAP estimates, while the bias is generally comparable.
+
+The precision of estimation for each parameter (numbers in brackets in tables~\ref{tab:iparRBias.PDHill1} to~\ref{tab:iparRBias.PDHill3}) can be compared to the SE predicted by \pkg{PFIM} assuming Bayesian estimation. These predictions could not be obtained in the sparse design, however we estimated them for the rich and IIV designs. For the Emax model in the rich scenario, precisions of 9, 18 and 39\% respectively were predicted by PFIM, and precisions of 25 to 29\% were expected for the IIV scenario. In both cases the precision is accurate for E$_0$ but worse than expected for ED$_{50}$. This was qualitatively similar for the models with more non-linearity.
+
+\paragraph{Action points:} these results prompt the following questions.
+\begin{itemize}
+\item Estimation of population parameters
+  \begin{itemize}
+  \item no bias in the rich design, even with large IIV and a covariance term, seems ok
+  \item bias on variances (both residual and interindividual with either less information or more noise): similar results to those in JSS paper~\cite{CometsJSS17}
+  \end{itemize}
+\item Estimation of SE
+  \begin{itemize}
+  \item underestimation could be due to the asymptotic nature of the FIM (lower bound of the Fisher information matrix)
+  \item[$\Rightarrow$] \textcolor{red}{check with previous simulation (Christelle) if same magnitude}
+  \end{itemize}
+\item Estimation of the individual parameters
+  \begin{itemize}
+  \item little or no bias in the rich design, with the MAP estimate, so that seems ok
+  \item some bias in the IIV design (to be expected ?)
+  \item however... why is conditional mean worse than MAP for the sparse design...
+  \item why no improvement when running the conditional distribution step after convergence ? 
+  \item worse precision than expected according to PFIM except for E$_0$
+  \item[$\Rightarrow$] \textcolor{red}{\bf implement diagnostic graphs for the estimation of the conditional distribution; debug (maybe check acceptance algorithm?)}
+  \end{itemize}
+\end{itemize}
+
+\SweaveInput{testSweave/results_Emax.Rnw}
+
+\clearpage
+\newpage
+\section{Discussion}
+
+\bigskip
+\bibliographystyle{apalike}
+\bibliography{evalSaemixExtension}
+
+\clearpage
+\newpage
+
+<<wrapup, results=hide, echo=FALSE>>=
+setwd(CUR_WD)
+@
+\end{document}
+
+\begin{itemize}
+\item 
+  \begin{itemize}
+  \item 
+  \end{itemize}
+\item 
+  \begin{itemize}
+  \item 
+  \end{itemize}
+\end{itemize}
+
+
